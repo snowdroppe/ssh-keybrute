@@ -1,7 +1,7 @@
 # ssh-keybrute
-Simple python3 framework to parellelise ssh key bruteforcing
+Simple python3 framework to parellelise ssh key brute forcing.
 
-I wrote a simple python3 native script to perform ssh key bruteforcing against legacy targets (such as Debian machines affected by CVE-2008-0166) with multithreading. It includes a bunch of ssh algorithm compatibilitiy flags to force modern ssh clients to connect using legacy methods and can be easily reconfigured to use any binary / shell command.
+I wrote a simple python3 native script to perform ssh key brute forcing against legacy targets (such as Debian machines affected by CVE-2008-0166) with multithreading. It includes a bunch of ssh algorithm compatibilitiy flags to force modern ssh clients to connect using legacy methods and can be easily reconfigured to use any binary / shell command.
 
 For those of you interested in the Debian predicatable PRNG issue which results in a 15-bit keyspace, there's a fantastic write-up and set of both DSA-1024 and RSA-2048 pre-generated keys over at this repo: [g0tmi1k/debian-ssh](https://github.com/g0tmi1k/debian-ssh)
 
