@@ -12,7 +12,7 @@ config = {
     "users":  ["root"], # list of usernames to attempt
     "dirs":  ["./"], # list of directories of keys to attempt
                   # (only files without "." will be attempted so .pub is excluded)
-    "success_code":  0, # expected process exit code for a successful attempt
+    "success_code":  0, # expected process exit code for a successful attempt [0]
     "reject_str": "Connection closed by remote host", # string that indicates connection rejection
     "period": 5, # reporting period in seconds [5]
     "threads": 8, # number of threads. Keep this low to prevent rejected connections [8]
@@ -35,10 +35,8 @@ def attempt(config, user, key):
         global die
         cmd = ("ssh"
         + " -oKexAlgorithms=+diffie-hellman-group1-sha1"
-        + " -oHostKeyAlgorithms=+ssh-dss"
-        + " -oHostKeyAlgorithms=+ssh-rsa"
-        + " -oPubkeyAcceptedKeyTypes=+ssh-dss"
-        + " -oPubkeyAcceptedKeyTypes=+ssh-rsa"
+        + " -oHostKeyAlgorithms=+ssh-dss,ssh-rsa"
+        + " -oPubkeyAcceptedKeyTypes=+ssh-dss,ssh-rsa"
         + " -oPreferredAuthentications=publickey"
         + " -T -p %s -i %s %s@%s" % (config["port"], key, user, config["host"])
         )
@@ -51,6 +49,7 @@ def attempt(config, user, key):
                     + " -> code=%s\t" % p.returncode+p.stdout.decode("utf-8"), end="")
         if (p.returncode == config["success_code"] and not die):
             print("\a"*4 + "[" + colours.green + colours.bold + "SUCCESS" + colours.clear + "] valid key found: " + key)
+            print("Connect with: " + colours.bold + cmd.replace("-T ", "") + colours.clear)
             die = True
         else:
             pool += 1
@@ -104,7 +103,8 @@ def main(config):
                 l = 0
     while(len(threading.enumerate()) > 1):
         pass
-    print("\a"*4 + "[" + colours.red + colours.bold + "FAILURE" + colours.clear + "] all keys exhuasted")
+    if (not die):
+        print("\a"*4 + "[" + colours.red + colours.bold + "FAILURE" + colours.clear + "] all keys exhuasted")
     cleanup()
 
 if (__name__=="__main__"):
